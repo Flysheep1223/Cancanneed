@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: ark-usage
+    orgId: 1
+    folder: 方舟用量
+    folderUid: ark-usage
+    type: file
+    disableDeletion: false
+    editable: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: ${GF_PATHS_PROVISIONING}/../../.runtime/ark-dashboards
+      foldersFromFilesStructure: false

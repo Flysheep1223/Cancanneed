@@ -1,0 +1,233 @@
+{
+  "uid": "ark-model-tpm",
+  "title": "方舟用量 · wtpm / RPM",
+  "description": "同一看板展示各模型 Token 与请求量的分钟趋势，共用账号、模型和时间筛选。1 wtpm = 10,000 Token/分钟，RPM 为请求/分钟；仅覆盖已导入数据。",
+  "tags": [
+    "ark",
+    "tpm",
+    "rpm",
+    "真实用量"
+  ],
+  "timezone": "Asia/Shanghai",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "account",
+        "label": "账号",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "local-postgres"
+        },
+        "definition": "SELECT DISTINCT account_id AS __text, account_id AS __value FROM public.ark_usage_records ORDER BY 1;",
+        "query": "SELECT DISTINCT account_id AS __text, account_id AS __value FROM public.ark_usage_records ORDER BY 1;",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "options": []
+      },
+      {
+        "name": "model",
+        "label": "模型",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "local-postgres"
+        },
+        "definition": "SELECT DISTINCT model_name AS __text, model_name AS __value\nFROM public.ark_usage_records WHERE account_id IN (${account:sqlstring}) ORDER BY 1;",
+        "query": "SELECT DISTINCT model_name AS __text, model_name AS __value\nFROM public.ark_usage_records WHERE account_id IN (${account:sqlstring}) ORDER BY 1;",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "各模型总 wtpm · 随时间变化",
+      "description": "1 wtpm = 10,000 Token/分钟。输入与输出相加，缓存已包含在输入中。固定一分钟桶，缺少记录补 0；仅覆盖已导入的部分模型。",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "local-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "interval": "1m",
+      "maxDataPoints": 2000,
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "local-postgres"
+          },
+          "rawSql": "WITH bounds AS (\n  SELECT greatest(min(window_start), date_trunc('minute', $__timeFrom()::timestamptz)) AS lo,\n         least(max(window_end), $__timeTo()::timestamptz) AS hi\n  FROM public.ark_usage_exports WHERE account_id IN (${account:sqlstring})\n), minutes AS (\n  SELECT generate_series(lo, hi - interval '1 microsecond', interval '1 minute') AS time FROM bounds\n), models AS (\n  SELECT DISTINCT model_name FROM public.ark_usage_records WHERE account_id IN (${account:sqlstring}) AND model_name IN (${model:sqlstring})\n), samples AS (\n  SELECT minute_start, model_name, sum(total_tokens) AS value\n  FROM public.ark_model_tpm WHERE account_id IN (${account:sqlstring}) AND model_name IN (${model:sqlstring}) AND minute_start >= $__timeFrom()::timestamptz AND minute_start < $__timeTo()::timestamptz GROUP BY 1, 2\n)\nSELECT minutes.time, models.model_name AS metric, coalesce(samples.value, 0) / 10000.0 AS value\nFROM minutes CROSS JOIN models\nLEFT JOIN samples ON samples.minute_start = minutes.time AND samples.model_name = models.model_name\nORDER BY 1, 2;",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: wtpm",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B877D9"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "auto",
+            "axisBorderShow": false,
+            "axisLabel": "wtpm（万 Token / 分钟）",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        },
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "各模型 RPM · 随时间变化",
+      "description": "每分钟请求数，按账号、模型和请求 ID 去重，以最早用量记录时间分桶；缺失分钟补 0。仅覆盖已导出请求。",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "local-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 10
+      },
+      "interval": "1m",
+      "maxDataPoints": 2000,
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "local-postgres"
+          },
+          "rawSql": "WITH bounds AS (\n  SELECT greatest(min(window_start), date_trunc('minute', $__timeFrom()::timestamptz)) AS lo,\n         least(max(window_end), $__timeTo()::timestamptz) AS hi\n  FROM public.ark_usage_exports WHERE account_id IN (${account:sqlstring})\n), minutes AS (\n  SELECT generate_series(lo, hi - interval '1 microsecond', interval '1 minute') AS time FROM bounds\n), models AS (\n  SELECT DISTINCT model_name FROM public.ark_usage_records WHERE account_id IN (${account:sqlstring}) AND model_name IN (${model:sqlstring})\n), samples AS (\n  SELECT minute_start, model_name, sum(request_count) AS value\n  FROM public.ark_model_rpm WHERE account_id IN (${account:sqlstring}) AND model_name IN (${model:sqlstring}) AND minute_start >= $__timeFrom()::timestamptz AND minute_start < $__timeTo()::timestamptz GROUP BY 1, 2\n)\nSELECT minutes.time, models.model_name AS metric, coalesce(samples.value, 0) / 1 AS value\nFROM minutes CROSS JOIN models\nLEFT JOIN samples ON samples.minute_start = minutes.time AND samples.model_name = models.model_name\nORDER BY 1, 2;",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: rpm",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B877D9"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisPlacement": "auto",
+            "axisBorderShow": false,
+            "axisLabel": "请求 / 分钟",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        },
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    }
+  ]
+}

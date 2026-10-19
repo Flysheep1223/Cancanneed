@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: Local PostgreSQL
+    uid: local-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    orgId: 1
+    url: ${POSTGRES_HOST}:${POSTGRES_PORT}
+    user: $GRAFANA_POSTGRES_USER
+    isDefault: false
+    editable: false
+    version: 1
+    jsonData:
+      database: $POSTGRES_DB
+      sslmode: disable
+      postgresVersion: 1800
+      timescaledb: false
+      maxOpenConns: 10
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: $GRAFANA_POSTGRES_PASSWORD

@@ -1,0 +1,5 @@
+# Python 3.12；在项目 .venv 中安装。
+volcengine==1.0.229
+python-dotenv==1.2.4
+requests==2.34.2
+psycopg[binary]==3.3.6

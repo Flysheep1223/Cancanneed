@@ -1,0 +1,12 @@
+[[ if and .Settings.AnonymousEnabled .Settings.DisableLoginForm ]]
+<script nonce="[[.Nonce]]">
+  (() => {
+    const root = '[[.AppSubUrl]]/';
+    const path = window.location.pathname.replace(/\/+$/, '');
+    const authPages = ['login', 'signup', 'user/password/send-reset-email', 'user/password/reset'];
+    if (authPages.some((page) => path === root + page)) {
+      window.location.replace(root);
+    }
+  })();
+</script>
+[[ end ]]

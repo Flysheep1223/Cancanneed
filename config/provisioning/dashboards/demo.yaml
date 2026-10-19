@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: postgres-demo
+    orgId: 1
+    folder: Demo
+    folderUid: local-demo
+    type: file
+    disableDeletion: false
+    editable: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: ${GF_PATHS_PROVISIONING}/../dashboards
+      foldersFromFilesStructure: false
